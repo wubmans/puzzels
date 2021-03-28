@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<script src="https://cdn.jsdelivr.net/npm/vue@3.0.9/dist/vue.global.js"></script>
+		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6" crossorigin="anonymous">
+		<style>
+
+			table td {
+				border: 1px solid #aaa;
+				width: 20px;
+				height: 20px;
+			}
+
+			table td.filled {
+				background-color: #444;
+			}
+
+			table td.undecided {
+				background-color: #a8b7c6;
+			}
+			table td.empty {
+				background-color: white;
+			}
+
+			table tr.indexing td {
+				border: 0;
+				font-size: 10px;
+				text-align: center;
+				color: #aaa;
+			}
+
+			table tr.borders td {
+				border: 0;
+			}
+
+			table tr.borders td.l {
+				background-color: #d9b6d9;
+				text-align: center;
+				font-size: 10px;
+				color: white;
+				font-weight: bold;
+			}
+
+			table tr.borders td.r {
+				background-color: #efd38c;
+				text-align: center;
+				font-size: 10px;
+				color: white;
+				font-weight: bold;
+			}
+
+			.existing_parts {
+				font-family: monospace;
+				font-size: 10px;
+				color: #666;
+			}
+
+			.meta_data span {
+				display: block;
+			}
+
+		</style>
+	</head>
+<body>
+
+	<div id="app">
+		<div class="container mt-5">
+			<div class='d-flex'>
+				<input v-model='constraint' class='me-3'>		
+				<table>
+					<tr class="indexing">
+						<td v-for="(cell, index) in cells">
+							{{ index + 1 }}
+						</td>
+						
+					</tr>
+					<tr>
+						<td v-for="(cell, index) in cells" @click="toggle_cell(index)" :class="status[cell.type]" :id="index">
+							
+						</td>
+					</tr>
+					<tr></tr>
+					<tr class="borders">
+						<td v-for="(cell, index) in cells" :id="index" :class="{ l:left_borders.includes(index), r: right_borders.includes(index) }">
+							<span v-if="left_borders.includes(index)">L</span>
+							<span v-if="right_borders.includes(index)">R</span>
+						</td>
+					</tr>
+
+					<tr class="results">
+						<td v-for="(result, index) in results" :class="status[result.type]" :id="index">
+						</td>
+					</tr>
+
+					<tr class="indexing">
+						<td v-for="(c, index) in considering" :id="index"> 
+							{{ c }}
+						</td>
+					</tr>
+
+				</table>
+			</div>	
+			<div>
+				<div class="existing_parts p-2 mt-2 d-inline-block" style="background: #fafafa; border: 1px solid #ccc">
+					{{ existing_parts }}
+				</div>
+				</pre>
+			</div>	
+			</div>
+		</div>
+	</div>
+	<script type="text/javascript">
+
+			//Vue.config.devtools = true;
+
+			let size = 20;
+
+			const app = Vue.createApp({
+				data() {
+					return {
+						cells: [],
+						constraint: null,
+						parts: [],
+						status: ['empty', 'undecided', 'filled'],
+						left_borders: [],
+						right_borders: [],
+						results: [],
+						considering: [],
+						existing_parts: []
+					}
+				},
+				created() {
+					for(let i = 0; i < size; i++) {
+						this.cells.push({type: 1});
+						this.results.push({ type: 1 });
+					}
+				},
+				watch: {
+					constraint(new_constraint, old_constraint) {
+						this.parts = new_constraint.split(',');
+						this.parts = this.parts.map((n) => Number(n)); 
+
+						this.length = this.parts.reduce((a, b) => a + b , 0) + (this.parts.length - 1);
+						this.wiggle = size - this.length;	
+					},
+
+					parts(new_parts, old_parts) {
+						this.check_parts()
+					}
+				},
+				methods: {
+					toggle_cell(index) {
+						this.cells[index].type += 1;
+						if (this.cells[index].type > 2) {
+							this.cells[index].type = 0
+						}
+						this.check_parts()
+						this.get_parts();
+					},
+
+					get_parts() {
+
+						this.existing_parts = [];
+
+						let length = 0;
+
+						for (let i = 0; i < this.cells.length; i++) {
+							if (this.status[this.cells[i].type] != 'filled' && length > 0) {
+								this.existing_parts.push(length);
+								length = 0;
+							}
+							if (this.status[this.cells[i].type] == 'filled') {
+								length++;
+							}
+						}
+					},
+
+					check_parts(parts) {
+
+						if (!this.parts.length) {
+							return
+						}
+
+						this.right_borders = [];
+						this.left_borders = [];
+
+						let last_border = 0;
+						
+						for (let i = 0; i < this.parts.length; i++) {
+							let part = this.parts[i];
+							
+							last_border = this.determine_right_border(part, last_border, this.cells)
+							this.right_borders.push(last_border)
+							last_border += 2;
+						};
+
+						last_border = size - 1;
+
+						for (let i = this.parts.length - 1; i > -1; i--) {
+							let part = this.parts[i];
+							last_border = this.determine_left_border(part, last_border, this.cells)
+							this.left_borders.unshift(last_border)
+							last_border -= 2;							
+						};
+
+						this.determine_results();
+					},
+
+					determine_right_border(part, start, array) {
+						
+						let space = part;
+
+						for (let i = start; i < array.length; i++) {
+							if(this.status[array[i].type] == 'filled') {
+								console.log('piggggng')
+							}
+
+							if(this.status[array[i].type] != 'empty') {
+								space--
+							} else {
+								space = part;
+							}
+
+							if (space == 0) {
+								return i;
+							}
+						}
+					},
+					
+					determine_left_border(part, start, array) {
+						let space = part;
+
+						for (let i = start; i > -1; i--) {
+							if(this.status[array[i].type] != 'empty') {
+								space--
+							} else {
+								space = part;
+							}
+
+							if (space == 0) {
+								return i;
+							}
+						}
+					},
+					
+					determine_results() {
+
+						let part_index = 0;
+						this.results = [];
+						this.considering = [];
+
+						for (let i = 0; i < size; i++) {
+							this.results.push({ type: 1 });
+						}
+						
+						for (let i = 0; i < size; i++) {
+							this.considering[i] = part_index;
+							if (this.right_borders[part_index] - this.parts[part_index] >= i) {
+								this.results[i] = { type: 0 }
+							}
+							if (this.left_borders[part_index] + this.parts[part_index] <= i) {
+								this.results[i] = { type: 0 }
+							}
+
+							if (i >= this.left_borders[part_index] && i <= this.right_borders[part_index]) {
+								this.results[i] = { type: 2 }
+							}
+
+							if (i == this.left_borders[part_index] + this.parts[part_index] - 1) {
+								part_index++;
+								if (part_index > this.parts.length - 1) {
+									part_index = this.parts.length - 1;
+								}
+							}
+
+						}
+
+					}
+				}
+			})
+			const vm = app.mount("#app")
+	</script>
+</body>
+</html>

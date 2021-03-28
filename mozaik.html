@@ -1,0 +1,242 @@
+<html>
+	<head>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl" crossorigin="anonymous">
+	
+		<style>
+		
+			table td {			
+				width: 30px;
+				height: 30px;
+				position: relative;
+			}
+			
+			.table-bordered {
+				border: 1px solid #ccc;
+			}
+			
+			table td input {
+				border: none;
+				outline: none;
+				width: 25px;
+				height: 25px;
+				text-align: center;
+			}
+			
+			table td.light {
+				background: white;
+			}
+			
+			table td.grey {
+				background: grey;
+			}
+			
+			table td.dark {
+				background: #445869;
+			}
+			
+			#table_result td.hover {
+				border: 2 px solid yellow;
+				background: rgba(255, 128, 0, 0.4);
+			}
+			
+			.tooltip {
+				display: block;
+				position: absolute;
+				top: -20px;
+				left: 20px;
+				padding: 5p;
+				border: 1px solid grey;
+				background-color: #fffdec;
+				border-radius: 5px;
+				z-index: 100;
+				opacity: 1;
+				font-size: 12px;
+				font-family: monospace;
+				min-width: 200px;
+			}
+		
+		</style>
+	</head>
+	
+	<body>
+		<div class="container">
+		<div class="row">&nbsp;
+		</div>
+		<div class="row">
+			<div class="col">
+				<h6>Puzzel</h6>
+				<div id="table_constraints">
+				&nbsp;
+				</div>
+			</div>
+			
+			<div class="col">				
+				<h6>Oplossing</h6>
+				<div class="col" id="table_result">
+				&nbsp;
+				</div>
+			</div>
+	</body>
+
+	<script>
+	
+		$(() => {
+			let size = 15;
+			
+			let values;
+			let constraints;
+			
+			let setupValues = function () {
+				values = [];
+				for (let i = 0; i < size; i++) {
+					values[i] = []
+					for (let j = 0; j < size; j++) {
+						values[i][j] = 1;
+					}
+				}
+			}
+
+			let drawConstraintsTable = function() {
+				let html = "<table class='table-bordered'>";
+				for (let i = 0; i < size; i++) {
+					html += "<tr>"
+					for (let j = 0; j < size; j++) {
+						html += "<td><input data-x=" + j + " data-y= " + i + " ></td>"
+					}
+					html += "</tr>";
+				}
+				html += "</table>";
+				
+				$("#table_constraints").html(html);
+			}
+			
+			let getConstraints = () => {
+				constraints = [];
+				$("input").each((i, e) => {
+					let value = $(e).val();
+					if (value != '') {
+						constraints.push({ x: $(e).data('x'), y: $(e).data('y'), value: value });
+					}
+				})
+			}
+			
+			let getCount = (x, y) => {
+			
+				let light = 0;
+				let grey = 0;
+				let dark = 0;
+				
+				for (let p = x -1; p - 2 < x; p++) {
+					if (p < 0 || p >= size) {
+						continue;
+					}		
+					
+					for (let q = y -1; q - 2 < y; q++) {
+						if (q < 0 || q >= size) {
+							continue;
+						}	
+						
+						switch(values[p][q]) {
+							case 0: light++; continue;
+							case 1: grey++; continue;
+							case 2: dark++; continue;
+							
+						}	
+						
+					}
+				}
+
+				return [light, grey, dark];					
+			}
+			
+			let setToValue = (x, y, value) => {
+				let changed = false;
+				for (let i = x -1; i < x + 2; i++) {
+					if (i < 0 || i >= size) {
+						continue;
+					}							
+					for (let j = y -1; j < y + 2; j++) {
+						if (j < 0 || j >= size) {
+							continue;
+						}	
+						
+						if (values[i][j] == 1) {
+							changed = true;
+							values[i][j] = value;
+						}
+					}
+				}
+
+				return changed				
+			}
+			
+			let applyConstraints = () => {
+				let repeat = false;
+				constraints.forEach((constraint) => {
+					counts = getCount(constraint.x, constraint.y);
+					if (counts[1] == (constraint.value - counts[2])) {
+						repeat = repeat || setToValue(constraint.x, constraint.y, 2);
+					}
+					
+					if (counts[2] == constraint.value ) {
+						repeat = repeat || setToValue(constraint.x, constraint.y, 0);
+					}
+				})
+				
+				if (repeat) {
+					applyConstraints();
+				}
+			}
+					
+			
+			$(document).on("change", "input", (e) => {
+				setupValues();
+				getConstraints();
+				applyConstraints();
+				drawResult();
+			});
+			
+			$(document).on("mouseover", "#table_constraints td" , function (e){
+				$("#table_result td").removeClass("hover");
+		
+				$t = $(e.currentTarget).find("input");
+				counts = getCount($t.attr("data-x"), $t.attr("data-y"));
+				console.log(counts);
+				$(e.currentTarget).append($("<div class ='tooltip'>Grey: " + counts[1] + ", white: " + counts[0] + ", black: " + counts[2] +  "</div>"))
+				$("#table_result td[data-x=" +  $t.attr("data-x") + "][data-y=" + $t.attr("data-y") +  "]").addClass("hover");
+			});
+			
+			$(document).on("mouseout", () => {
+				$("#table_result td").removeClass("hover");
+				$(".tooltip").remove();
+			});
+			
+			let drawResult = function () {
+			
+				let html = "<table class='table-bordered'>";
+				for (let i = 0; i < size; i++) {
+					html += "<tr>"
+					for (let j = 0; j < size; j++) {
+						switch (values[j][i]) {
+							case 0: html += "<td data-x='" + j + "' data-y='" + i + "' class='light'></td>"; break;
+							case 1: html += "<td data-x='" + j + "' data-y='" + i + "'class='grey'></td>"; break;
+							case 2: html += "<td data-x='" + j + "' data-y='" + i + "'class='dark'></td>"; break;
+						}
+					}
+					html += "</tr>";
+				}
+				html += "</table>";
+				
+				$("#table_result").html(html);
+			}
+		
+			setupValues();
+			drawConstraintsTable();
+			drawResult();
+			
+		});
+		
+	
+	</script>
+</html>
