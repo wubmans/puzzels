@@ -49,14 +49,12 @@
 				font-weight: bold;
 			}
 
-			.existing_parts {
+			.data {
 				font-family: monospace;
 				font-size: 10px;
 				color: #666;
-			}
-
-			.meta_data span {
-				display: block;
+				background: #fafafa; 
+				border: 1px solid #ccc;
 			}
 
 		</style>
@@ -101,10 +99,18 @@
 				</table>
 			</div>	
 			<div>
-				<div class="existing_parts p-2 mt-2 d-inline-block" style="background: #fafafa; border: 1px solid #ccc">
-					{{ existing_parts }}
+				<div>
+					<div class="data p-2 mt-2 d-inline-block">
+						{{ parts }}
+					</div>
 				</div>
-				</pre>
+				<div>
+					<div v-for="existing_part in existing_parts">
+						<div class="data p-2 mt-2 d-inline-block">
+						{{ existing_part }}
+						</div>
+					</div>
+				</div>
 			</div>	
 			</div>
 		</div>
@@ -145,17 +151,21 @@
 					},
 
 					parts(new_parts, old_parts) {
-						this.check_parts()
+						this.update()
 					}
 				},
 				methods: {
+					update() {
+						this.check_parts();
+						this.get_parts();
+						this.assign_parts();
+					},
 					toggle_cell(index) {
 						this.cells[index].type += 1;
 						if (this.cells[index].type > 2) {
 							this.cells[index].type = 0
 						}
-						this.check_parts()
-						this.get_parts();
+						this.update()
 					},
 
 					get_parts() {
@@ -163,16 +173,145 @@
 						this.existing_parts = [];
 
 						let length = 0;
+						let start = 0;
 
 						for (let i = 0; i < this.cells.length; i++) {
 							if (this.status[this.cells[i].type] != 'filled' && length > 0) {
-								this.existing_parts.push(length);
+								this.existing_parts.push({start: start, length: length, segments: []});
 								length = 0;
 							}
 							if (this.status[this.cells[i].type] == 'filled') {
+								if (length == 0) {
+									start = i;
+								}
 								length++;
+								
 							}
 						}
+					},
+
+					can_assign(existing_part, part_index) {
+						if (existing_part.length > this.parts[part_index]) {
+							return false;
+						}
+
+						if (existing_part.start <= this.right_borders[part_index] - this.parts[part_index]) {
+							return false;
+						}
+						// @todo: klopt deze?
+						if (existing_part.start + existing_part.length >= this.left_borders[part_index] + this.parts[part_index]) {
+							return false;
+						}
+
+						// de rest van de constraints afspelen vanaf hier?
+
+						return true;
+					},
+
+					next_letter(letter) {
+						 return String.fromCharCode(letter.charCodeAt(0) + 1);
+					},
+
+					canConnect(a, b, part_index) {
+						if (b.start >= a.start + this.parts[part_index]) {
+							return false;
+						}
+
+						for (let i = a.start; i < a.start + this.parts[part_index]; i++) {
+							if (this.status[this.cells[i].type] == 'empty') {
+								return false;
+							}
+
+						}
+
+						return true;
+
+					},
+
+					check_constraints(existing_part_index, part_index) {
+						// left side
+
+
+						// let expected = this.parts.length - part_index -1;
+						// let parts = [];
+						// let existing_part = this.existing_parts[existing_part_index];
+						// let start = existing_part.start + existing_part.length; 
+
+						// for (let i = start; i < size; i++) {
+
+						// 	if (this.status[this.cells[i].type] != 'filled' && length > 0) {
+						// 		parts.push({ length: length});
+						// 		length = 0;
+						// 	}
+						// 	if (this.status[this.cells[i].type] == 'filled') {
+						// 		length++;
+						// 	}
+						// }
+
+						// console.log('---')
+						// console.log('tested ep %s for pi %s', existing_part_index, part_index)
+						// console.log('constraints found: %s, parts expected %s', parts, expected);
+
+						// return (parts <= expected )
+
+						// right
+
+						//for (let i = part_index; i < this.parts.length)
+						return true;
+					},
+
+					assign_parts() {
+						let segment = 'A';
+
+						// opties bepalen
+						for (let i = 0; i < this.existing_parts.length; i++) {
+							let offset = 0;
+							let existing_part = this.existing_parts[i]
+							for (let j = 0; j < this.parts.length; j++) {
+								let part = this.parts[j];
+
+								if (this.can_assign(existing_part, j)) {
+									if (this.check_constraints(i, j)) {
+										existing_part.segments.push(j)
+									}
+								} 
+								// else {
+								// 	segment = this.next_letter(segment);
+								// 	continue;
+								// }
+
+								// offset += part + 1;
+							}
+								
+						}
+
+						// opties elmineren: 
+						// kan er gewandeld worden van een naar ander
+						for (let k = 0; k < this.existing_parts.length - 1; k++) {
+							let existing_part = this.existing_parts[k];
+							for (let l = 0; l < existing_part.segments.length; l++) {
+								let LS = existing_part.segments[l];
+								for (let m = k + 1; m < this.existing_parts.length; m++) {
+									let neighbor = this.existing_parts[m];
+									for (let n = 0; n < neighbor.segments.length; n++) {
+										let RS = neighbor.segments[n];
+										if (LS == RS) {
+											if (!this.canConnect(existing_part, neighbor, LS)) {
+												if (neighbor.segments.length > 1) {
+													neighbor.segments.splice(n, 1);
+												} else {
+													existing_part.segments.splice(l,1);
+												}
+												
+												
+											console.log('KAN NIET: %s -> %s voor ', k, m, LS);
+											}
+										}
+									}
+								}
+							}
+						}
+
 					},
 
 					check_parts(parts) {
@@ -212,7 +351,7 @@
 
 						for (let i = start; i < array.length; i++) {
 							if(this.status[array[i].type] == 'filled') {
-								console.log('piggggng')
+
 							}
 
 							if(this.status[array[i].type] != 'empty') {
