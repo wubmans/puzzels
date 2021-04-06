@@ -76,15 +76,15 @@
 				</div>
 				<br/>
 				<br/>
-				<button type="button" class="btn btn-secondary" @click="can_fit_constraints">Check if it fit's</button><br/><br/>
+				<button type="button" class="btn btn-secondary" @click="can_apply_constraints">Check if it fit's</button><br/><br/>
 				<button type="button" class="btn btn-primary" @click="generate_output">Generate output</button>
 			</div>
 			<div class='col-10'>		
 				<table>
 					<tr class="indexing">
 						<td>&nbsp;</td>
-						<td v-for="(cell, index) in cells">
-							{{ index + 1 }}
+						<td v-for="(cell, index) in input">
+							{{ index }}
 						</td>
 						
 					</tr>
@@ -92,22 +92,20 @@
 					</tr>
 					<tr>
 						<td style="border: none" class="pe-3 text-muted"><small>input</small></td>
-						<td v-for="(cell, index) in cells" @click="toggle_cell(index)" :class="status[cell.type]" :id="index"></td>
+						<td v-for="(i, index) in input" @click="toggle_cell(index)" :class="status[i]" :id="index"></td>
 					</tr>
 					<tr><td style="border: none">&nbsp;</td></tr>
 					<tr class="output">
 						<td style="border: none" class="pe-3 text-muted"><small>output</small></td>
-						<td v-for="(o, index) in output" :class="status[o.type]" :id="index">
-						</td>
-					</tr>
-
-					<tr class="indexing">
-						<td v-for="(c, index) in considering" :id="index"> 
-							{{ c }}
+						<td v-for="(o, index) in output" :class="status[o]" :id="index">
 						</td>
 					</tr>
 
 				</table>
+
+				<div class="data m-2">
+					<pre>{{ messages }}</pre>
+				</div>
 			</div>
 		</div>	
 			<div>
@@ -128,20 +126,22 @@
 			const app = Vue.createApp({
 				data() {
 					return {
-						cells: [],
+						input: [],
+						output: [],
+						draft: [],
 						constraint: null,
 						constraints: [],
 						status: ['empty', 'possible', 'filled'],
-						output: [],
-						considering: [],
 						possible_parts: [],
 						actual_parts: [],
+						messages: []
 					}
 				},
 				created() {
 					for(let i = 0; i < size; i++) {
-						this.cells.push({type: 1});
-						this.output.push({ type: 1 });
+						this.input.push(1);
+						this.draft.push(1);
+						this.output.push(1);
 					}
 
 					//this.determine_parts(0, size, true);
@@ -154,28 +154,27 @@
 
 					constraints() {
 						this.update()
+					},
+					input() {
+						this.update()
+					},
+					messages()  {
+						this.$forceUpdate();
 					}
 				},
 				methods: {
+
 					update() {
-						this.possible_parts = this.determine_parts(this.cells, 0, size, true);
-						this.actual_parts = this.determine_parts(this.cells, 0, size);
+						//this.possible_parts = this.determine_parts(this.input, 0, size, true);
+						//this.actual_parts = this.determine_parts(this.input, 0, size);
 						//this.can_fit_constraints();
 					},
 
-					get_cell(index) {
-						return this.status[this.cells[index].type];
-					},
-					set_cell(index, status) {
-						this.cells[index].type = this.status.indexOf(status);
-					},
-
 					toggle_cell(index) {
-						this.cells[index].type += 1;
-						if (this.cells[index].type > 2) {
-							this.cells[index].type = 0
+						this.input[index] += 1;
+						if (this.input[index] > 2) {
+							this.input[index] = 0
 						}
-						this.update()
 					},
 
 					get_constraints_length(constraints) {
@@ -189,7 +188,7 @@
 						return length;
 					},
 
-					determine_parts(cells, start, stop, possible) {
+					determine_parts(cells, start, stop, include_possible) {
 
 						let parts = []
 
@@ -199,7 +198,8 @@
 
 						let finish_part = (i) => {
 							if (length > 0) {
-								parts.push({ length: length, left: left, right: i })
+								
+								parts.push({ length: length, left: left, right: i - 1 })
 								length = 0;
 							}
 						}
@@ -212,129 +212,306 @@
 						}
 
 						for (let i = start; i < stop; i++) {
-							switch(this.status[cells[i].type]) {
-								case 'filled': 
+							//
+							switch(cells[i]) {
+								case 2: 
 									build_part(i);
 									break;
-								case 'possible':
-									possible ? build_part(i) : finish_part(i);
+								case 1:
+									include_possible ? build_part(i) : finish_part(i);
 									break;
-								case 'empty':
+								case 0:
 									finish_part(i);
 									break;
 
 							}
 						}
 
+						// possible remaining part
 						if (length > 0) {
-							parts.push({ length: length, left: left, right: size })
+							
+							finish_part(stop);
+							//parts.push({ length: length, left: left, right: stop })
 						}
 
 						return parts;
 					},
 
 					generate_output() {
-						if (!this.can_fit_constraints(this.cells)) {
-							return;
-						}
 
-						let cells = [];
-
-						for (let k = 0; k < size; k++) {
-							cells.push({ type: 1 })
-						}
+						this.draft = [...this.input];
 
 						for (let i = 0; i < size; i++) {
-							this.output[i].type = 1;
 
-							if (this.get_cell(i) != "possible") {
-								cells[i].type = this.cells[i].type;
-								this.output[i].type = this.cells[i].type;
+							
+							
+
+							this.output[i] = 1;
+
+							if (this.input[i] != 1) {
+								this.draft[i] = this.input[i];
+								this.output[i] = this.input[i];
 								continue;
 							}
 								
-							cells[i].type = 0;
-							if (!this.can_fit_constraints(cells)) {	
-								console.log('nope, not possible')	
-								cells[i].type = 2;
-								this.output[i].type = 2;
+							this.draft[i] = 0;
+							if (!this.can_apply_constraints(this.draft)) {	
+								
+								this.draft[i] = 2;
+								this.output[i] = 2;
 								continue;
 							}
 
-							// cells[i].type = 2;
-							// if (!this.satisfies_constraints(cells)) {									
-							// 	cells[i].type = 0;
-							// 	this.output[i].type = 0;	
-							// 	continue;				
-							// }
+							this.draft[i] = 2;
+							if (!this.can_apply_constraints(this.draft)) {						
+								
+								this.draft[i] = 0;
+								this.output[i] = 0;	
+								continue;				
+							}
 
-							cells[i].type = 1;
+							this.draft[i] = 1;
+
+							
 					
 						}
 					},
 
-					// even simpele max min
-					satisfies_constraints(cells) {
-
-						let max = Math.max.apply(Math, this.constraints);
-						let min = Math.min.apply(Math, this.constraints);
-
-						let parts = this.determine_parts(cells, 0, size);
-						for (let i = 0; i < parts.length; i++) {
-							if (parts[i].length > max) {
-								console.log('no cigar');
-								return false;
-							}
-						}
-
-						return true;
-
-					},
-
-					can_fit_constraints(cells) {
+					can_apply_constraints(cells) {
 						let index = 0;
 
 						if (this.constraints.length == 0) {
 							return true;
 						}
 
-						let c = [...this.constraints];
+						let constraints = [...this.constraints];
+						let actual_parts = this.determine_parts(cells, 0, size);
 						let possible_parts = this.determine_parts(cells, 0, size, true);
 
-						return this.can_fit(c, possible_parts);
+						return result = this.can_fit(cells, constraints, actual_parts, possible_parts, 0)
 					},
 
-					can_fit(c, p) {
-						if (!c.length){
-							return true;
+					can_fit(cells, constraints, actual_parts, possible_parts, start) {
+						
+
+
+						if (start >= size && constraints.length > 0) {
+							
+							// array is op
+							return false;
+						}
+						
+						if (actual_parts.constructor != Array) {
+							console.log("***** NOT AN ARRAY ****")
+						}
+
+						if (constraints.length === 0) {
+							if (actual_parts.length > 0) {
+								console.log(actual_parts)
+								return false;
+							}
 						}
 
 						let length;
 
-						// past alles in een van de vakjes?
-						length = this.get_constraints_length(c);
-						for (let i = 0; i < p.length; i++) {
-							if (p[i].length >= length) {
-								//console.log("%s fits at %s in %s with no remainder", length, i, p[i].length)
-								return true;
+						/*
+						 *		no actual parts
+						 *
+						 */
+
+						 // @todo: fix this error in copying arrays
+						if (actual_parts.length === 0 || !actual_parts[0]) {
+
+							
+
+							length = this.get_constraints_length(constraints);
+							
+
+							
+							for (let i = 0; i < possible_parts.length; i++) {
+								if (possible_parts[i].length >= length) {
+									return true;
+								}
+							}
+
+							// nee. Past de eerste constraint ergens en de rest in de rest?
+							let _constraints = [...constraints];
+							let part = _constraints.shift();
+
+							for (let i = 0; i < possible_parts.length; i++) {
+								if (possible_parts[i].length >= part) {
+									return this.can_fit(cells, _constraints, actual_parts, possible_parts.splice(i+1))
+								}
+							}
+
+							return false;
+						}
+
+						/*
+						 *		actual parts
+						 *
+						 */
+
+
+
+						for (let j = 0; j < actual_parts.length; j++) {
+
+							let actual_part = actual_parts[j];
+	
+							if (start + actual_part.length > size) {
+								
+								return false;
+							}
+
+							for (let k = 0; k < constraints.length; k++) {
+								let constraint = constraints[k];
+
+								// same size
+								if (actual_part.length == constraint) {									
+									let a_remaining = [...actual_parts].splice(j + 1);
+									let c_remaining = [...constraints].splice(k + 1)
+									let s_remaining = actual_part.right + 1
+
+
+									if (this.can_fit(cells, c_remaining, a_remaining, possible_parts, s_remaining)) {
+										return true;
+									}
+								}
+
+								if (actual_part.length < constraint) {	
+																	
+									let r = this.part_can_grow(cells, actual_part, constraint);
+									
+									;
+									if (r !== false) {
+										let a_remaining = [...actual_parts].splice(j + 1);
+										let c_remaining = [...constraints].splice(k + 1)
+										let s_remaining = r + 1;		
+								
+										if (this.can_fit(cells, c_remaining, a_remaining, possible_parts, s_remaining)) {
+											return true;
+										} else {
+											// see if we can continue growing into actual_parts to the right
+											for (let l = j + 1; l < actual_parts.length; l++) {
+												let neighbor = actual_parts[l];
+												let r = this.part_can_grow(cells, neighbor, constraint);
+
+												if (r !== false && (r + 1 - constraint) <= actual_part.left) {
+													
+													let a_remaining = [...actual_parts].splice(l + 1);
+													let c_remaining = [...constraints].splice(k + 1)
+													let s_remaining = r + 1;
+													if (this.can_fit(cells, c_remaining, a_remaining, possible_parts, s_remaining)) {
+														return true;
+													}
+												}
+											}
+										}
+									}
+								}
+
+								// can't fit this constraint; push left and continue
+								let r = this.fit_constraint(cells, constraint, start, actual_part.left);
+								if (r !== false) {
+									let c_remaining = [...constraints].splice(k + 1)
+									let s_remaining = r + 1;
+									if (this.can_fit(cells, c_remaining, actual_parts, possible_parts, s_remaining)) {	
+										return true;
+									}
+								}
+								
+								return false;
 							}
 						}
 
-						//console.log("%s doesnt fit in %s, maybe if we spread parts", length, p)
+					},
 
-						// nee. Past de eerste constraint ergens en de rest in de rest?
-						let part = c.shift();
+					part_can_grow(cells, part, required) {
 
-						for (let i = 0; i < p.length; i++) {
-							if (p[i].length >= part) {
-								//console.log("%s fits in %s", part, p[i].length)
-								//console.log("lets check remainder: ", c, [...p].splice(i+1))
-								return this.can_fit(c, p.splice(i+1))
+						let difference = required - part.length;
+
+						let i = part.left  - difference;
+						let j = part.right + difference;
+
+						if (i < 0) {
+							i = 0;
+						}
+
+						if (j > size - 1) {
+							j = size - 1;
+						}
+
+						let length = 0;
+						let right = 0;
+
+						
+
+						for (let k = i; k <= j; k++) {
+							if (cells[k] != 0) {
+								length++
+								
+
+								right = k;
+
+								if (length == required) {
+									break;
+								}
+							} else {
+								
+								length = 0;
+							}
+						}
+						
+
+						
+
+						if (length != required) {
+							return false;
+						}
+						
+						return right;
+					},
+
+					fit_constraint(cells, required, start, stop) {
+
+						let length = 0;
+						let right = 0;
+
+						for (let k = start; k < stop; k++) {
+							if (cells[k] != 0) {
+								length++
+								
+
+								right = k;
+
+								if (length == required) {
+									break;
+								}
+							} else {
+								
+								length = 0;
 							}
 						}
 
-						//console.log('ITS TOO BIG!')
+						if (length != required) {
+							return false;
+						}
+
+						return right;
 					}
+
+
+						// code voor geen actual_parts
+
+						/*
+
+						// past alles in een van de vakjes?
+
+
+						*/
+
+						//
+					
 				}
 			})
 			const vm = app.mount("#app")
