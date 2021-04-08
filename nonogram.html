@@ -515,52 +515,89 @@
 						 *
 						 */
 
-						for (let j = 0; j < actual_parts.length; j++) {
+						
+						this.log(actual_parts.length + " actual parts")
+						
+						let actual_part = actual_parts[0];
 
-							this.log(actual_parts.length + " actual parts")
+						this.log("starting with a " + actual_part.length + "  from " + actual_part.left + " to " + actual_part.right)
+
+						if (start + actual_part.length > size) {
 							
-							let actual_part = actual_parts[j];
+							return false;
+						}
 
-							this.log("starting with a " + actual_part.length + "  from " + actual_part.left + " to " + actual_part.right)
-	
-							if (start + actual_part.length > size) {
-								
-								return false;
+						let k = 0;
+
+						// eerst zoveel mogelijk constraints naar links duwen
+						let constraint = constraints[k];
+
+						let r = this.fit_constraint(cells, constraint, start, actual_part.left);
+						if (r !== false) {
+							let c_remaining = [...constraints].splice(k + 1)
+							let s_remaining = r + 2;
+
+							this.log("pushing constraint " + constraint + " to " + r)
+
+							this.push_position(r - constraint + 1)
+
+							if (this.can_fit(cells, c_remaining, actual_parts, s_remaining)) {
+								this.log("Remainder fits after pushing constraint!")
+
+								return true;
 							}
 
-							for (let k = 0; k < constraints.length; k++) {
-								let constraint = constraints[k];
+							this.pop_position()
 
-								let r = this.fit_constraint(cells, constraint, start, actual_part.left);
-								if (r !== false) {
+							this.log("Nope, constraint cannot be pushed to the left")
+						}
+
+						// same size
+						if (actual_part.length == constraint) {	
+							
+							this.log(actual_part.length + " is same size, see if we can fit remainder to the right")
+
+							this.push_position(actual_part.left);
+
+							let a_remaining = [...actual_parts].splice(1);
+							let c_remaining = [...constraints].splice(k + 1)
+							let s_remaining = actual_part.right + 2
+
+							if (this.can_fit(cells, c_remaining, a_remaining, s_remaining)) {
+								this.log("Yes, remainder fits, done")
+								return true;
+							}
+
+							this.log("Nope, reverting from "  + actual_part.left)
+							
+							this.pop_position();
+						}
+
+						// smaller
+						if (actual_part.length < constraint) {	
+
+							this.log(actual_part.length + " is smaller than constraint size " + constraint + ", see if we can grow it")
+													
+							for (let l = actual_parts.length - 1; l >= 0; l--) {	
+								
+								let _actual_part = actual_parts[l];	
+								let r = this.part_can_grow(cells, _actual_part, constraint, start);
+							
+								if (r !== false && (r + 1 - constraint) <= actual_part.left) {
+									
+									if (cells[r + 1] ==2) {
+										this.log("Grown part would be bigger because of neighbor cell to r, so no fit");
+										continue
+									}
+
+											
+									let a_remaining = [...actual_parts].splice(l + 1);
 									let c_remaining = [...constraints].splice(k + 1)
 									let s_remaining = r + 2;
 
-									this.log("pushing constraint " + constraint + " to " + r)
-
-									this.push_position(r - constraint + 1)
-
-									if (this.can_fit(cells, c_remaining, actual_parts, s_remaining)) {
-										this.log("Remainder fits after pushing constraint!")
-	
-										return true;
-									}
-
-									this.pop_position()
-
-									this.log("Nope, constraint cannot be pushed to the left")
-								}
-
-								// same size
-								if (actual_part.length == constraint) {	
+									this.log(constraint + " can fit from " + (r + 1 - constraint) + " to  " + r + ", see if rest fits from " + s_remaining)
 									
-									this.log(actual_part.length + " is same size, see if we can fit remainder to the right")
-
-									this.push_position(actual_part.left);
-
-									let a_remaining = [...actual_parts].splice(j + 1);
-									let c_remaining = [...constraints].splice(k + 1)
-									let s_remaining = actual_part.right + 2
+									this.push_position(r + 1 - constraint);
 
 									if (this.can_fit(cells, c_remaining, a_remaining, s_remaining)) {
 										this.log("Yes, remainder fits, done")
@@ -568,62 +605,18 @@
 									}
 
 									this.log("Nope, reverting from "  + actual_part.left)
-									
+
 									this.pop_position();
 								}
-
-								// smaller
-								if (actual_part.length < constraint) {	
-
-									this.log(actual_part.length + " is smaller than constraint size " + constraint + ", see if we can grow it")
-
-															
-									for (let l = actual_parts.length - 1; l >= j; l--) {	
-										
-										let _actual_part = actual_parts[l];	
-										let r = this.part_can_grow(cells, _actual_part, constraint, start);
-									
-										if (r !== false && (r + 1 - constraint) <= actual_part.left) {
-											
-											if (cells[r + 1] ==2) {
-												this.log("Grown part would be bigger because of neighbor cell to r, so no fit");
-												continue
-											}
-
-													
-											let a_remaining = [...actual_parts].splice(l + 1);
-											let c_remaining = [...constraints].splice(k + 1)
-											let s_remaining = r + 2;
-
-											this.log(constraint + " can fit from " + (r + 1 - constraint) + " to  " + r + ", see if rest fits from " + s_remaining)
-											
-											this.push_position(r + 1 - constraint);
-
-											if (this.can_fit(cells, c_remaining, a_remaining, s_remaining)) {
-												this.log("Yes, remainder fits, done")
-												return true;
-											}
-
-											this.log("Nope, reverting from "  + actual_part.left)
-
-											this.pop_position();
-										}
-									}
-								}
-
-								// can't fit this constraint; push left and continue
-
-								this.log(actual_part.length + " is bigger than constraint, pushing constraint to the left")
-
-
-
-
-								this.log('Cannot fit, returning false')
-								
-								return false;
 							}
 						}
 
+						// can't fit this constraint; push left and continue
+
+						this.log(actual_part.length + " is bigger than constraint, pushing constraint to the left")
+						this.log('Cannot fit, returning false')
+						
+						return false;
 					},
 
 					part_can_grow(cells, part, required, start) {
